@@ -1,0 +1,525 @@
+<?php
+
+/**
+ * @file Alphabetical sitemap module functionality.
+ */
+
+include_once 'imagex_alphabetical_sitemap.features.inc';
+
+/**
+ * Implements hook_menu().
+ */
+function imagex_alphabetical_sitemap_menu() {
+
+  $items = array();
+
+  $path = variable_get('imagex_alphabetical_sitemap_path', 'a-z');
+  $path_ahah = variable_get('imagex_alphabetical_sitemap_path_ahah', 'a-z-ahah');
+
+  $items[$path] = array(
+    'title' => 'ISU Websites A-Z',
+    'description' => 'Displays dynamic alphabetical sitemap.',
+    'page callback' => 'imagex_alphabetical_sitemap_page',
+    'page arguments' => array(),
+    'access arguments' => array('view alphabetical sitemap'),
+  );
+  $items[$path_ahah] = array(
+    'title' => 'ISU Websites A-Z AHAH callback',
+    'description' => 'AHAH request endpoint.',
+    'page callback' => 'imagex_alphabetical_sitemap_retrieve',
+    'page arguments' => array(),
+    'access arguments' => array('view alphabetical sitemap'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/config/search/alphabetical_sitemap'] = array(
+    'title' => 'Alphabetical Sitemap',
+    'description' => 'Configuration settings form for Alphabetical Sitemap.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('imagex_alphabetical_sitemap_admin'),
+    'access arguments' => array('administer alphabetical sitemap'),
+    'file' => 'imagex_alphabetical_sitemap.admin.inc',
+  );
+
+  return $items;
+
+}
+
+/**
+ * Implements hook_permission().
+ */
+function imagex_alphabetical_sitemap_permission() {
+
+  $permissions = array(
+    'administer alphabetical sitemap' => array(
+      'title' => t('Administer alphabetical sitemap'),
+      'description' => t('Administer alphabetical sitemap configuration.'),
+    ),
+    'view alphabetical sitemap' => array(
+      'title' => t('View  alphabetical sitemap'),
+      'description' => t('View alphabetical sitemap.'),
+    ),
+  );
+
+  return $permissions;
+
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function imagex_alphabetical_sitemap_theme() {
+
+  return array(
+    'imagex_alphabetical_sitemap_nav' => array(
+      'arguments' => array(),
+    ),
+    'imagex_alphabetical_sitemap_no_results' => array(
+      'arguments' => array('letter' => NULL, 'page' => NULL),
+    ),
+    'imagex_alphabetical_sitemap_tag_wrap' => array(
+      'arguments' => array('tag' => 'div', 'content' => NULL, 'attributes' => NULL),
+    ),
+    'imagex_alphabetical_sitemap_tag_wrap_t' => array(
+      'arguments' => array('tag' => 'div', 'text' => NULL, 'args' => NULL, 'attributes' => NULL),
+    ),
+  );
+
+}
+
+/**
+ * Implements hook_library().
+ *
+ * Checks to see if the Library exists, and makes it available.
+ *
+ * @return
+ *   Drupal Library definition for Spin.js
+ */
+function imagex_alphabetical_sitemap_library() {
+
+  $libraries = array();
+  $libpath = libraries_get_path('spinjs');
+  $jspath = $libpath . '/spin.min.js';
+
+  $libraries['spinjs'] = array(
+    'title' => "Spin.js",
+    'website' => 'http://fgnass.github.io/spin.js/',
+    'version' => '1.3.0',
+    'js' => array($jspath => array())
+  );
+
+  return $libraries;
+
+}
+
+/**
+ * Implements hook_views_query_alter().
+ */
+function imagex_alphabetical_sitemap_views_query_alter(&$view, &$query) {
+
+  if (variable_get('imagex_alphabetical_sitemap_titles_by_word', 1)) {
+
+    if ($view->name == variable_get('imagex_alphabetical_sitemap_listing_view', 'a_z_listings')) {
+      // Get the letter
+      $letter = strtolower($view->args[0]);
+
+      if ($letter != 'all') {
+
+        // Unset the old title search and sort
+        unset($query->where[0]);
+        unset($query->orderby[0]);
+
+        // Update the where to search on first letter of each word in the title
+        $join = new views_join;
+        $join->construct('search_index', 'node', 'nid', 'sid', null, 'INNER');
+
+        $query->add_table('search_index', 'node', $join, 'si');
+        $query->add_field(null, 'LOCATE(si.word, node.title)', 'intitle');
+        $query->add_field('si', 'word', 'matched_word');
+
+        $query->add_where_expression('az', "LEFT(si.word, 1) = :letter", array(':letter' => $letter));
+        $query->add_having_expression('az', 'intitle > 0');
+
+        $query->add_orderby('si', 'word', 'ASC');
+
+      }
+
+    }
+
+  }
+
+}
+
+/**
+ * Implements hook_preprocess_views_view_field().
+ */
+function imagex_alphabetical_sitemap_preprocess_views_view_field(&$vars) {
+
+  if (variable_get('imagex_alphabetical_sitemap_titles_by_word', 1)) {
+
+    if (isset($vars['view']->name) && $vars['view']->name == variable_get('imagex_alphabetical_sitemap_listing_view', 'a_z_listings')) {
+
+      $row = $vars['row'];
+
+      if (isset($row->intitle)) {
+
+        // If a matched word was found in the title, update the output to include it
+        if ($row->intitle > 1) {
+          $matched_word = ucfirst($row->matched_word);
+
+          $vars['output'] = l("<span class='matched-word'>$matched_word</span> $row->node_title", "node/$row->nid", array('html'=>true));
+        }
+
+      }
+
+    }
+
+  }
+
+}
+
+/**
+ * Page callback for the alpha sitemap landing page.
+ *
+ * @return
+ *   HTML search, navigation, and results.
+ */
+function imagex_alphabetical_sitemap_page() {
+
+  // Add search form.
+  $search_form = drupal_get_form('imagex_alphabetical_sitemap_search');
+  $output = drupal_render($search_form);
+  // Add alphabetical navigation.
+  $output .= theme('imagex_alphabetical_sitemap_nav', array());
+  // Add results for display.
+  $view = imagex_alphabetical_sitemap_retrieve('return');
+  $output .= theme('imagex_alphabetical_sitemap_tag_wrap', array('tag' => 'div', 'content' => $view, 'attributes' => array('id' => 'a-z-list')));
+
+  $alpha_sitemap = drupal_get_path('module', 'imagex_alphabetical_sitemap');
+
+  drupal_add_library('system','effects.highlight');
+  drupal_add_library('system','ui.autocomplete');
+  drupal_add_library('imagex_alphabetical_sitemap', 'spinjs');
+  drupal_add_js($alpha_sitemap . '/js/imagex_alphabetical_sitemap.js');
+  drupal_add_css($alpha_sitemap . '/css/imagex_alphabetical_sitemap.css');
+
+  return $output;
+
+}
+
+/**
+ * Search form.
+ *
+ * @see imagex_alphabetical_sitemap_search_submit().
+ *
+ * @ingroup forms
+ */
+function imagex_alphabetical_sitemap_search() {
+
+  $form = array();
+
+  $form['search'] = array(
+    '#type' => 'textfield',
+    '#default_value' => isset($_GET['search']) ? $_GET['search'] : '',
+    '#attributes' => array(
+        'placeholder' => t('Search ISU A-Z'),
+    ),
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Search'),
+  );
+
+  return $form;
+
+}
+
+/**
+ * Submit handler for imagex_alphabetical_sitemap_search().
+ *
+ * @ingroup forms
+ */
+function imagex_alphabetical_sitemap_search_submit($form, &$form_state) {
+
+  $form_state['redirect'] = array(
+    'a-z',
+    array(
+      'query' => array(
+        'search' => $form_state['values']['search'],
+      ),
+    ),
+  );
+
+}
+
+/**
+ * Retrieves results for alpha sitemap navigation and search queries by
+ * manually building views.
+ *
+ * @param $output
+ *   Optional string defining what method the content should be output through.
+ *
+ * @return
+ *   HTML view or no results.
+ */
+function imagex_alphabetical_sitemap_retrieve($output = 'print') {
+
+  $letter = !isset($_GET['letter']) ? '' : $_GET['letter'];
+  $page = !isset($_GET['page']) ? 0 : $_GET['page'];
+  $search = !isset($_GET['search']) ? '' : $_GET['search'];
+
+  if (!empty($search)) {
+
+    $search_view_name = variable_get('imagex_alphabetical_sitemap_search_view', 'a_z_fuzzy_search');
+
+    $view = views_get_view($search_view_name);
+    $view->set_arguments(array($search));
+    $view->set_current_page($page);
+    $view->init_display();
+    $view->pre_execute();
+    $view->execute();
+
+    if (empty($view->result)) {
+
+      return imagex_alphabetical_sitemap_output($output, theme('imagex_alphabetical_sitemap_no_results', array('letter' => $letter, 'page' => $page)));
+
+    }
+    else {
+
+      return imagex_alphabetical_sitemap_output($output, $view->render());
+
+    }
+
+  }
+  else {
+
+    $listing_view_name = variable_get('imagex_alphabetical_sitemap_listing_view', 'a_z_listings');
+
+    $view = views_get_view($listing_view_name);
+    $view->set_arguments(array($letter));
+    $view->set_current_page($page);
+    $view->init_display();
+    $view->pre_execute();
+    $view->execute();
+
+    if (empty($view->result)) {
+
+      return imagex_alphabetical_sitemap_output($output, theme('imagex_alphabetical_sitemap_no_results', array('letter' => $letter, 'page' => $page)));
+
+    }
+    else {
+
+      return imagex_alphabetical_sitemap_output($output, $view->render());
+
+    }
+
+  }
+
+}
+
+/**
+ * Helper to output content using the specified method.
+ *
+ * @param $output
+ *   String method name.
+ * @param $content
+ *   That which is being passed via the $output method.
+ */
+function imagex_alphabetical_sitemap_output($output, $content) {
+
+  switch ($output) {
+
+    case 'print':
+
+      print $content;
+
+      break;
+
+    case 'echo':
+
+      echo $content;
+
+      break;
+
+    default:
+
+      return $content;
+
+      break;
+
+  }
+
+}
+
+/**
+ * Theme function for building navigation structure.
+ *
+ * @param $variables
+ *   Theme variables.
+ *   @see imagex_alphabetical_sitemap_theme().
+ */
+function theme_imagex_alphabetical_sitemap_nav($variables) {
+
+  // TODO: Change method here to constructing render arrays instead of html
+  //       strings.
+
+  if (!empty($_GET['letter'])) {
+
+    $variables['letter'] = $_GET['letter'];
+
+  }
+
+  if (!empty($_GET['search'])) {
+
+    $variables['letter'] = 'search';
+
+  }
+
+  $output = '';
+
+  $sections = array(
+    'search',
+    'all',
+    'a',
+    'b',
+    'c',
+    'd',
+    'e',
+    'f',
+    'g',
+    'h',
+    'i',
+    'j',
+    'k',
+    'l',
+    'm',
+    'n',
+    'o',
+    'p',
+    'q',
+    'r',
+    's',
+    't',
+    'u',
+    'v',
+    'w',
+    'x',
+    'y',
+    'z',
+  );
+
+  foreach ($sections as $section) {
+
+    $link = l($section, 'a-z', array('query' => array('letter' => $section)));
+
+    if (!empty($variables['letter']) && $variables['letter'] == $section) {
+
+      $output .= theme('imagex_alphabetical_sitemap_tag_wrap', array('tag' => 'li', 'content' => $link, 'attributes' => array('class' => array('selected', $section))));
+
+    }
+    elseif (empty($variables['letter']) && $section == 'all') {
+
+      $output .= theme('imagex_alphabetical_sitemap_tag_wrap', array('tag' => 'li', 'content' => $link, 'attributes' => array('class' => array('selected', $section))));
+
+    }
+    else {
+
+      $output .= theme('imagex_alphabetical_sitemap_tag_wrap', array('tag' => 'li', 'content' => $link, 'attributes' => array('class' => $section)));
+
+    }
+
+  }
+
+  $output = theme('imagex_alphabetical_sitemap_tag_wrap', array('tag' => 'ul', 'content' => $output, 'attributes' => array('class' => 'a-z-nav')));
+
+  return $output;
+
+}
+
+/**
+ * Theme for no results output.
+ *
+ * @param $variables
+ *   Theme variables.
+ *   @see imagex_alphabetical_sitemap_theme().
+ */
+function theme_imagex_alphabetical_sitemap_no_results($variables) {
+
+  $no_results = 'No pages found';
+
+  if (!empty($variables['letter']) && !empty($variables['page'])) {
+
+    $no_results .= ' for the letter \'@letter\' and page @page';
+
+    return theme('imagex_alphabetical_sitemap_tag_wrap_t', array('tag' => 'p', 'text' => $no_results, 'args' => array('@letter' => $variables['letter'], '@page' => $variables['page']), 'attributes' => array()));
+
+  }
+  elseif (!empty($variables['letter']) && empty($variables['page'])) {
+
+    $no_results .= ' for the letter \'@letter\'';
+
+    return theme('imagex_alphabetical_sitemap_tag_wrap_t', array('tag' => 'p', 'text' => $no_results, 'args' => array('@letter' => $variables['letter']), 'attributes' => array()));
+
+  }
+  elseif (empty($variables['letter']) && !empty($variables['page'])) {
+
+    $no_results .= ' for page @page';
+
+    return theme('imagex_alphabetical_sitemap_tag_wrap_t', array('tag' => 'p', 'text' => $no_results, 'args' => array('@page' => $variables['page']), 'attributes' => array()));
+
+  }
+  else {
+
+    return theme('imagex_alphabetical_sitemap_tag_wrap_t', array('tag' => 'p', 'text' => $no_results, 'args' => array(), 'attributes' => array()));
+
+  }
+
+}
+
+/**
+ * Theme HTML tag with attributes, content, and arguments for content.
+ *
+ * @param $tag
+ *   The type of HTML tag to wrap the content in.
+ * @param $content
+ *   The content to place inside the tag.
+ * @param $attributes
+ *   Associative array of HTML attributes to be passed to drupal_attributes.
+ *   Associative array of the text to wrap, an array of replacement patterns for
+ *   the text (as accepted by t()), and an array of attributes to apply to the
+ *   html tag.
+ */
+function theme_imagex_alphabetical_sitemap_tag_wrap($variables) {
+
+  // If content is an array, concatenate array into string.
+  if (is_array($variables['content'])) {
+
+    $variables['content'] = implode('', $variables['content']);
+
+  }
+
+  return '<' . $variables['tag'] . drupal_attributes($variables['attributes']) . '>' . $variables['content'] . '</'. $variables['tag'] . '>';
+
+}
+
+/**
+ * Theme HTML tag with attributes, content, and arguments for content.
+ *
+ * @param $tag
+ *   The type of HTML tag to wrap the content in.
+ * @param $text
+ *   The text content to place inside the tag.
+ * @param $args
+ *   The arguments to replace inside the text.
+ * @param $attributes
+ *   Associative array of HTML attributes to be passed to drupal_attributes.
+ *   Associative array of the text to wrap, an array of replacement patterns for
+ *   the text (as accepted by t()), and an array of attributes to apply to the
+ *   html tag.
+ */
+function theme_imagex_alphabetical_sitemap_tag_wrap_t($variables) {
+
+  return '<' . $variables['tag'] . drupal_attributes($variables['attributes']) . '>' . t($variables['text'], $variables['args']) . '</'. $variables['tag'] . '>';
+
+}
+
