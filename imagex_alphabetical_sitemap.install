@@ -1,0 +1,18 @@
+<?php
+
+/**
+ * @file Alphabetical sitemap install.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function imagex_alphabetical_sitemap_uninstall() {
+
+  variable_del('imagex_alphabetical_sitemap_path');
+  variable_del('imagex_alphabetical_sitemap_path_ahah');
+  variable_del('imagex_alphabetical_sitemap_listing_view');
+  variable_del('imagex_alphabetical_sitemap_search_view');
+  variable_del('imagex_alphabetical_sitemap_titles_by_word');
+
+}
