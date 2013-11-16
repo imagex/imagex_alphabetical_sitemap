@@ -63,8 +63,6 @@ if (document.all && !window.setInterval.isPolyfill) {
 
     });
 
-    $('#alpha-sitemap-search .form-submit').hide();
-
     AlphaSitemap.bind.search();
 
     AlphaSitemap.bind.nav();
