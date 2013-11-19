@@ -8,6 +8,24 @@ There is an administrative page to configure where the alphabetical sitemap shou
 
 For the letter results, there is an additional option to parse all words in the title field of the content to display results under one letter if any word in the title contains that letter in question. The item shows up in the listing, in that case, prefixed by the word that the query found in the title that starts with the letter in question.
 
+## Installation
+
+A drupal-org.make file is included to allow you to build the module dependencies with drush make. This module requires:
+
+- ctools
+- entity
+- features
+- fuzzysearch
+- history_js
+- history_js library
+- search_api
+- search_api_db
+- search_api_views
+- spinjs library
+- views
+
+*** Note that this module assumes you'll already have installed ctools, entity, features, and views and as such does not provide them in drupal-org.make. If you don't already have these installed, you'll need to add them manually or include them in your profile's drupal-org.make.
+
 
 ## Roadmap
 

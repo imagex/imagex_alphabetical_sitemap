@@ -3,12 +3,6 @@ core = 7.x
 
 ; Download contributed modules.
 
-projects[ctools][type] = "module"
-projects[ctools][subdir] = "contrib"
-projects[ctools][version] = "1.3"
-projects[entity][type] = "module"
-projects[entity][subdir] = "contrib"
-projects[entity][version] = "1.1"
 projects[fuzzysearch][type] = "module"
 projects[fuzzysearch][subdir] = "contrib"
 projects[fuzzysearch][version] = "1.x-dev"
@@ -22,9 +16,6 @@ projects[search_api][version] = "1.4"
 projects[search_api_db][type] = "module"
 projects[search_api_db][subdir] = "contrib"
 projects[search_api_db][version] = "1.0-beta4"
-projects[views][type] = "module"
-projects[views][subdir] = "contrib"
-projects[views][version] = "3.7"
 
 
 ; Download Libraries.

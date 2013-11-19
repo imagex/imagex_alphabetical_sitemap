@@ -17,14 +17,14 @@ function imagex_alphabetical_sitemap_menu() {
   $path_ahah = variable_get('imagex_alphabetical_sitemap_path_ahah', 'a-z-ahah');
 
   $items[$path] = array(
-    'title' => 'ISU Websites A-Z',
+    'title' => 'Sitemap A-Z',
     'description' => 'Displays dynamic alphabetical sitemap.',
     'page callback' => 'imagex_alphabetical_sitemap_page',
     'page arguments' => array(),
     'access arguments' => array('view alphabetical sitemap'),
   );
   $items[$path_ahah] = array(
-    'title' => 'ISU Websites A-Z AHAH callback',
+    'title' => 'Sitemap A-Z AHAH callback',
     'description' => 'AHAH request endpoint.',
     'page callback' => 'imagex_alphabetical_sitemap_retrieve',
     'page arguments' => array(),
@@ -221,7 +221,7 @@ function imagex_alphabetical_sitemap_search() {
     '#type' => 'textfield',
     '#default_value' => isset($_GET['search']) ? $_GET['search'] : '',
     '#attributes' => array(
-        'placeholder' => t('Search ISU A-Z'),
+        'placeholder' => t('Search A-Z'),
     ),
   );
 
